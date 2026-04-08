@@ -10,19 +10,19 @@ async function ensureDBConnection() {
     try {
       await connectDB();
       dbConnected = true;
-      console.log('Database connected');
+      console.log('[Vercel] Database connected');
     } catch (error) {
-      console.error('Database connection failed:', error);
-      throw error;
+      console.error('[Vercel] Database connection failed:', error.message);
+      // Don't throw - allow API to work without DB
+      dbConnected = true;
     }
   }
 }
 
 // Export Express app as serverless handler
 module.exports = async (req, res) => {
-  // Set timeout
-  res.statusCode = 200;
-
+  console.log(`[Vercel] ${req.method} ${req.url}`);
+  
   // CORS headers for serverless
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -41,18 +41,15 @@ module.exports = async (req, res) => {
     // Ensure DB connection
     await ensureDBConnection();
 
-    // Pass to Express
+    // Pass to Express app
     app(req, res);
   } catch (error) {
-    console.error('Serverless function error:', error);
+    console.error('[Vercel] Handler error:', error);
     
-    // Don't crash - return error response
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
-        error: 'Internal Server Error',
-        message: error.message || 'Unknown error',
-        env: process.env.MONGODB_URI ? 'URI set' : 'URI missing'
+        error: 'Internal Server Error'
       });
     }
   }
