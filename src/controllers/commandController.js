@@ -3,8 +3,6 @@
  * Handles speech-to-text commands without authentication
  */
 
-const commandParser = require('../services/commandParser');
-
 class CommandController {
   /**
    * Process voice command
