@@ -15,7 +15,12 @@ class VoiceService {
     const intentResult = this.detectIntent(normalizedText);
 
     // Extract entities based on detected intent
-    const entities = entityExtractor.extract(normalizedText, intentResult.intent);
+    let entities = entityExtractor.extract(normalizedText, intentResult.intent);
+
+    // Ensure date is formatted as ISO string
+    if (entities.date instanceof Date) {
+      entities.date = entities.date.toISOString().split('T')[0];
+    }
 
     // Check for missing required fields
     const missingFields = this.validateRequiredFields(intentResult.intent, entities);
@@ -125,6 +130,11 @@ class VoiceService {
       followUpResponse.toLowerCase(),
       session.partialTaskData.intent
     );
+
+    // Ensure date is formatted as ISO string
+    if (newEntity.date instanceof Date) {
+      newEntity.date = newEntity.date.toISOString().split('T')[0];
+    }
 
     // Merge with existing partial data
     const updatedEntities = {

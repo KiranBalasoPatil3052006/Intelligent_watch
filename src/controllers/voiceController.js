@@ -34,19 +34,34 @@ class VoiceController {
         }
       }
 
-      // Execute the command if no follow-up needed
+      // Build response with proper structure
+      const response = {
+        success: true,
+        message: result.followUpQuestion || `Command processed successfully`,
+        data: {
+          intent: result.intent,
+          requiresFollowUp: result.requiresFollowUp || false,
+          followUpQuestion: result.followUpQuestion,
+          tasks: [],
+          responseMessage: result.followUpQuestion || 'Command processed'
+        }
+      };
+
+      // If no follow-up needed, execute the intent
       if (!result.requiresFollowUp) {
-        const executionResult = await this.executeIntent(result.intent, result.entities, userId);
-        return res.json(ResponseFormatter.success(executionResult));
+        try {
+          const executionResult = await this.executeIntent(result.intent, result.entities, userId);
+          response.message = executionResult.message;
+          response.data.responseMessage = executionResult.message;
+          response.data.tasks = executionResult.tasks || [];
+        } catch (error) {
+          console.error('Error executing intent:', error);
+          response.message = 'Failed to execute command';
+          response.data.responseMessage = 'Failed to execute command';
+        }
       }
 
-      // Return follow-up question
-      return res.json(ResponseFormatter.success({
-        requiresFollowUp: true,
-        followUpQuestion: result.followUpQuestion,
-        partialData: result.partialData,
-        intent: result.intent
-      }));
+      return res.json(response);
 
     } catch (error) {
       next(error);
@@ -61,88 +76,131 @@ class VoiceController {
       case 'CREATE_TASK': {
         const taskResult = await taskService.createTask(userId, entities);
         return {
-          message: taskResult.message,
-          task: taskResult.task,
+          message: taskResult.message || 'Task created successfully',
+          tasks: [taskResult.task],
           hasConflict: taskResult.hasConflict || false,
           requiresConfirmation: taskResult.requiresConfirmation || false
         };
       }
 
       case 'UPDATE_TASK': {
+        let taskResult;
         if (entities.taskId) {
-          const task = await taskService.updateTask(entities.taskId, userId, entities);
-          return { message: `Task updated to ${task.status}`, task };
+          taskResult = await taskService.updateTask(entities.taskId, userId, entities);
+          return { 
+            message: `Task updated`, 
+            tasks: [taskResult]
+          };
         } else if (entities.title) {
-          // Find task by title and update
           const existingTask = await taskService.findByTitle(userId, entities.title);
           if (!existingTask) {
-            return { message: `Could not find task "${entities.title}"` };
+            return { 
+              message: `Could not find task "${entities.title}"`,
+              tasks: []
+            };
           }
-          const task = await taskService.updateTask(existingTask._id, userId, entities);
-          return { message: `Task "${task.title}" updated`, task };
+          taskResult = await taskService.updateTask(existingTask._id, userId, entities);
+          return { 
+            message: `Task "${taskResult.title}" updated`, 
+            tasks: [taskResult]
+          };
         }
-        return { message: 'Please specify which task to update' };
+        return { 
+          message: 'Please specify which task to update',
+          tasks: []
+        };
       }
 
       case 'DELETE_TASK': {
+        let taskResult;
         if (entities.taskId) {
-          const task = await taskService.deleteTask(entities.taskId, userId);
-          return { message: `Task "${task.title}" deleted` };
+          taskResult = await taskService.deleteTask(entities.taskId, userId);
+          return { 
+            message: `Task "${taskResult.title}" deleted`,
+            tasks: []
+          };
         } else if (entities.title) {
           const existingTask = await taskService.findByTitle(userId, entities.title);
           if (!existingTask) {
-            return { message: `Could not find task "${entities.title}"` };
+            return { 
+              message: `Could not find task "${entities.title}"`,
+              tasks: []
+            };
           }
-          const task = await taskService.deleteTask(existingTask._id, userId);
-          return { message: `Task "${task.title}" deleted` };
+          taskResult = await taskService.deleteTask(existingTask._id, userId);
+          return { 
+            message: `Task "${taskResult.title}" deleted`,
+            tasks: []
+          };
         }
-        return { message: 'Please specify which task to delete' };
+        return { 
+          message: 'Please specify which task to delete',
+          tasks: []
+        };
       }
 
       case 'GET_TASKS': {
         const tasks = await taskService.getTasks(userId, entities);
         return {
-          tasks,
-          message: taskService.generateListResponse(tasks)
+          message: taskService.generateListResponse(tasks),
+          tasks: tasks
         };
       }
 
       case 'HEALTH_REMINDER': {
         const settings = await healthService.setWaterReminder(userId, entities);
         return {
-          message: `Water reminder set for every ${entities.intervalMinutes || settings.waterInterval} minutes`
+          message: `Water reminder set for every ${entities.intervalMinutes || settings.waterInterval} minutes`,
+          tasks: []
         };
       }
 
       case 'WAKE_UP': {
         const settings = await healthService.setWakeUp(userId, entities);
         return {
-          message: `Wake-up alarm set for ${entities.time}`
+          message: `Wake-up alarm set for ${entities.time}`,
+          tasks: []
         };
       }
 
       case 'ACTIVITY_REMINDER': {
         const settings = await healthService.setActivityReminder(userId, entities);
         return {
-          message: `Activity reminder set for every ${entities.inactivityMinutes || settings.inactivityThreshold} minutes of inactivity`
+          message: `Activity reminder set for every ${entities.inactivityMinutes || settings.inactivityThreshold} minutes of inactivity`,
+          tasks: []
         };
       }
 
       case 'CONFIRMATION': {
-        return { message: 'Confirmed', intent };
+        return { 
+          message: 'Confirmed', 
+          tasks: [],
+          intent 
+        };
       }
 
       case 'CANCELLATION': {
         await sessionService.clearSession(userId);
-        return { message: 'Cancelled', intent };
+        return { 
+          message: 'Cancelled', 
+          tasks: [],
+          intent 
+        };
       }
 
       case 'CONVERSATION': {
-        return { message: entities.response || "I'm here to help!", intent };
+        return { 
+          message: entities.response || "I'm here to help!", 
+          tasks: [],
+          intent 
+        };
       }
 
       default:
-        return { message: "I'm not sure how to help with that. Could you rephrase?" };
+        return { 
+          message: "I'm not sure how to help with that. Could you rephrase?",
+          tasks: []
+        };
     }
   }
 }

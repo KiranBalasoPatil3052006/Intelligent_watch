@@ -103,7 +103,7 @@ const INTENTS = {
 
 // Required fields for each intent
 const REQUIRED_FIELDS = {
-  CREATE_TASK: ['title'],
+  CREATE_TASK: ['title', 'date'],
   UPDATE_TASK: [],
   DELETE_TASK: ['title'],
   GET_TASKS: [],
